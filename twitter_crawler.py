@@ -212,7 +212,7 @@ class CrawlTwitterTimelines:
 
         # Retrieve rest of Tweets
         while 1:
-            if tweets: #Will only trigger 
+            if tweets: #Will only trigger
                 max_id = int(tweets[-1]['id']) - 1
             more_tweets = self._twitter_endpoint.get_data(screen_name=screen_name, count=200, max_id=max_id, since_id=since_id)
             tweets += more_tweets
@@ -303,7 +303,7 @@ class CrawlTwitterTimelines:
 
         # Retrieve rest of Tweets
         while 1:
-            if tweets: #Will only trigger 
+            if tweets: #Will only trigger
                 max_id = int(tweets[-1]['id']) - 1
             more_tweets = self._twitter_endpoint.get_data(user_id=user_id, count=200, max_id=max_id, since_id=since_id)
             tweets += more_tweets
@@ -428,7 +428,7 @@ class FindFriendFollowers:
 ### Accessing data by user_id
 ###
 
-    def get_ff_ids_for_screen_name(self, user_id):
+    def get_ff_ids_for_id(self, user_id):
         """
         Returns Twitter user IDs for users who are both Friends and Followers
         for the specified `user_id`.
@@ -710,8 +710,8 @@ class UserLookup:
     def lookup_users(self, twitter_ids):
         """
         Returns the user lookup for the users specified by `twitter_id`
-        To maximize throughput of Twitter API, this looks up 100 users with a 
-        single call. 
+        To maximize throughput of Twitter API, this looks up 100 users with a
+        single call.
         """
         # The Twitter API allows us to look up info for 100 users at a time
         amassed_users = []
@@ -867,7 +867,7 @@ class RateLimitedTwitterEndpoint:
             return self._twython.get(self._twitter_api_endpoint, params=twitter_api_parameters)
         except TwythonError as e:
             self._logger.error("TwythonError: %s" % e)
-            
+
             # Twitter error codes:
             #    https://dev.twitter.com/docs/error-codes-responses
 
@@ -878,7 +878,7 @@ class RateLimitedTwitterEndpoint:
                 time.sleep(backoff)
                 self._update_rate_limit_status()
                 return self._get_data_with_backoff(backoff*2, **twitter_api_parameters)
-            # Sleep if Twitter servers are misbehaving 
+            # Sleep if Twitter servers are misbehaving
             elif e.error_code in [502, 503, 504]:
                 self._logger.error("Twitter servers are misbehaving - sleeping for %d seconds" % backoff)
                 time.sleep(backoff)
@@ -887,7 +887,7 @@ class RateLimitedTwitterEndpoint:
             elif "Caused by <class 'httplib.BadStatusLine'>: ''" in str(e):
                 # Twitter servers can sometimes return an empty HTTP response, e.g.:
                 #   https://dev.twitter.com/discussions/20832
-                # 
+                #
                 # The code currently detects empty HTTPS responses by checking for a particular
                 # string:
                 #   Caused by <class 'httplib.BadStatusLine'>: ''"

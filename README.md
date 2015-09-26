@@ -1,6 +1,24 @@
-trawler
+# trawler
 =======
 
+## Getting started
+````bash
+mkdir ~/.trawler/
+cp example_token_file.yaml ~/.trawler/default.yaml
+vim ~/.trawler/default.yaml
+````
+Place your twitter API tokens in ~/.trawler/default.yaml
+````bash
+./trawler -h
+./trawler -sn -sn example_screen_names.txt
+````
+
+## Notes
+
+### Useful scripts
+The scripts starting with the word save demonstrate various other functionality.
+
+### Rate Limits
 Most of the interesting functionality is in the class
 RateLimitedTwitterEndpoint. The class is a wrapper around the (Twython
 wrapper around the) Twitter API that handles all of the details of
