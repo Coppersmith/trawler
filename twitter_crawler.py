@@ -803,7 +803,7 @@ class SearchTwitterTimelines:
         else:
             self._logger = logger
 
-        self._twitter_endpoint = RateLimitedTwitterEndpoint(twython, "statuses/search_tweets", logger=self._logger)
+        self._twitter_endpoint = RateLimitedTwitterEndpoint(twython, "search/tweets", logger=self._logger)
 
 ###
 ### Accessing the users by `screen_name`
@@ -830,16 +830,17 @@ class SearchTwitterTimelines:
         self._logger.info("Retrieving Tweets for '%s'" % term)
 
         # Retrieve first batch of Tweets
-        tweets = self._twitter_endpoint.get_data(q=term, count=100)
+        tweets = self._twitter_endpoint.get_data(q=term, count=100)['statuses']
         self._logger.info("  Retrieved first %d Tweets for '%s'" % (len(tweets), term))
 
         if len(tweets) < MINIMUM_TWEETS_REQUIRED_FOR_MORE_API_CALLS:
             return tweets
-
+        iterations = 0
         # Retrieve rest of Tweets
         while 1:
+            iterations += 1
             max_id = int(tweets[-1]['id']) - 1
-            more_tweets = self._twitter_endpoint.get_data(screen_name=screen_name, count=100, max_id=max_id)
+            more_tweets = self._twitter_endpoint.get_data(q=term, count=100, max_id=max_id)['statuses']
             tweets += more_tweets
             self._logger.info("  Retrieved %d Tweets for user '%s' with max_id='%d'" % (len(more_tweets), term, max_id))
 
@@ -848,12 +849,13 @@ class SearchTwitterTimelines:
 
             #HARDCODE -- temporary
             try:
-                if len(tweets) % 10 == 0:
+                if iterations % 100 == 0:
                     print "Hit a round number, dumping to file"
                     import ujson as json
+                    import gzip
                     with gzip.open('%s.json.gz' % term,'w') as OUT:
                         for t in tweets:
-                            OUT.write('%s\n' % json.dump(tweet))
+                            OUT.write('%s\n' % json.dumps(t))
 
             except:
                 print "Broke on HARDCODE temporary"
@@ -1004,8 +1006,6 @@ class RateLimitedTwitterEndpoint:
     def _update_rate_limit_status(self):
         #  https://dev.twitter.com/docs/api/1.1/get/application/rate_limit_status
         rate_limit_status = self._twython.get_application_rate_limit_status(resources=self._twitter_api_resource)
-
-        print rate_limit_status['resources'][self._twitter_api_resource]
 
         self._current_rate_limit_window_ends = rate_limit_status['resources'][self._twitter_api_resource][self._twitter_api_endpoint_with_prefix]['reset']
 
