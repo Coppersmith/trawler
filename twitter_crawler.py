@@ -825,7 +825,7 @@ class SearchTwitterTimelines:
         # content is removed after the count has been applied."  See the API
         # documentation for the 'count' parameter for more info:
         #   https://dev.twitter.com/docs/api/1.1/get/statuses/user_timeline
-        MINIMUM_TWEETS_REQUIRED_FOR_MORE_API_CALLS = 50
+        MINIMUM_TWEETS_REQUIRED_FOR_MORE_API_CALLS = 20
 
         self._logger.info("Retrieving Tweets for '%s'" % term)
 
@@ -846,6 +846,17 @@ class SearchTwitterTimelines:
             if len(more_tweets) < MINIMUM_TWEETS_REQUIRED_FOR_MORE_API_CALLS:
                 return tweets
 
+            #HARDCODE -- temporary
+            try:
+                if len(tweets) % 10 == 0:
+                    print "Hit a round number, dumping to file"
+                    import ujson as json
+                    with gzip.open('%s.json.gz' % term,'w') as OUT:
+                        for t in tweets:
+                            OUT.write('%s\n' % json.dump(tweet))
+
+            except:
+                print "Broke on HARDCODE temporary"
 
 class RateLimitedTwitterEndpoint:
     """
@@ -994,6 +1005,8 @@ class RateLimitedTwitterEndpoint:
         #  https://dev.twitter.com/docs/api/1.1/get/application/rate_limit_status
         rate_limit_status = self._twython.get_application_rate_limit_status(resources=self._twitter_api_resource)
 
+        print rate_limit_status['resources'][self._twitter_api_resource]
+
         self._current_rate_limit_window_ends = rate_limit_status['resources'][self._twitter_api_resource][self._twitter_api_endpoint_with_prefix]['reset']
 
         self.api_calls_remaining_for_current_window = rate_limit_status['resources'][self._twitter_api_resource][self._twitter_api_endpoint_with_prefix]['remaining']
@@ -1037,3 +1050,9 @@ def get_list_membership_crawler(twython, logger=None):
     from `get_connection`"""
     membership_finder = ListMembership(twython, logger)
     return membership_finder
+
+def get_search_crawler(twython, logger=None):
+    """Requires a Twython instance passed to it, obtain such
+    from `get_connection`"""
+    search_finder = SearchTwitterTimelines(twython,logger)
+    return search_finder
