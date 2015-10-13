@@ -810,10 +810,12 @@ class SearchTwitterTimelines:
 ###
 
 
-    def get_all_search_tweets_for_term(self, term):
+    def get_all_search_tweets_for_term(self, term, max_id=None, **kwargs):
         """
         Retrieves all available Tweets from the search API for the given
-        search term
+        search term.
+        `max_id` can specify a tweet to search prior to, and all
+        other arguments will be passed on to the search API
         """
         # This function stops requesting additional Tweets from the timeline only
         # if the most recent number of Tweets retrieved is less than 50.
@@ -825,12 +827,20 @@ class SearchTwitterTimelines:
         # content is removed after the count has been applied."  See the API
         # documentation for the 'count' parameter for more info:
         #   https://dev.twitter.com/docs/api/1.1/get/statuses/user_timeline
-        MINIMUM_TWEETS_REQUIRED_FOR_MORE_API_CALLS = 20
+        MINIMUM_TWEETS_REQUIRED_FOR_MORE_API_CALLS = 1
 
         self._logger.info("Retrieving Tweets for '%s'" % term)
 
+        
+
         # Retrieve first batch of Tweets
-        tweets = self._twitter_endpoint.get_data(q=term, count=100)['statuses']
+        if max_id:
+            tweets = self._twitter_endpoint.get_data(q=term, count=100, 
+                                                     max_id=max_id-1,
+                                                     **kwargs)['statuses']
+        else:
+            tweets = self._twitter_endpoint.get_data(q=term, count=100,
+                                                     **kwargs)['statuses']
         self._logger.info("  Retrieved first %d Tweets for '%s'" % (len(tweets), term))
 
         if len(tweets) < MINIMUM_TWEETS_REQUIRED_FOR_MORE_API_CALLS:
@@ -840,9 +850,12 @@ class SearchTwitterTimelines:
         while 1:
             iterations += 1
             max_id = int(tweets[-1]['id']) - 1
-            more_tweets = self._twitter_endpoint.get_data(q=term, count=100, max_id=max_id)['statuses']
+            more_tweets = self._twitter_endpoint.get_data(q=term, count=100, 
+                                                          max_id=max_id,
+                                                          **kwargs)['statuses']
             tweets += more_tweets
-            self._logger.info("  Retrieved %d Tweets for user '%s' with max_id='%d'" % (len(more_tweets), term, max_id))
+            self._logger.info("  Retrieved %d Tweets for '%s' with max_id='%d'" 
+                              % (len(more_tweets), term, max_id))
 
             if len(more_tweets) < MINIMUM_TWEETS_REQUIRED_FOR_MORE_API_CALLS:
                 return tweets
