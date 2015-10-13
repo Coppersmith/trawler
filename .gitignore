@@ -2,4 +2,5 @@
 *~
 *#
 twitter_oauth_settings.py
+*.yaml
 data/
