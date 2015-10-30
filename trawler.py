@@ -59,9 +59,8 @@ def main():
     else:
         raise "Unrecognized token file type -- please use a .yaml or .py file following the examples"
             
-    ACCESS_TOKEN = Twython(tokens['consumer_key'], tokens['consumer_secret'], oauth_version=2).obtain_access_token()
-    twython = Twython(tokens['consumer_key'], access_token=ACCESS_TOKEN)
-    crawler = RateLimitedTwitterEndpoint(twython, "statuses/user_timeline", logger)
+    twython = get_connection( tokens['consumer_key'], tokens['consumer_secret'])
+    crawler = get_timeline_crawler( twython, logger=logger)
 
     # Gather unique screen names
     screen_names = get_screen_names_from_file(args.screen_name_file)
