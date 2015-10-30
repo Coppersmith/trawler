@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-This script downloads Tweets for a given list of usernames and their FF networks to a specified depth.
+This script downloads Tweets for a given list of usernames.
 Instantiate with -h option to view help info.
 """
 
