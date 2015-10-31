@@ -19,7 +19,8 @@ from twython import Twython, TwythonError
 
 # Local modules
 from twitter_crawler import (get_connection, save_tweets_to_json_file,
-                             get_screen_names_from_file, get_timeline_crawler)
+                             get_screen_names_from_file, get_timeline_crawler,
+                             get_console_info_logger)
 
 def main():
     # Make stdout output UTF-8, preventing "'ascii' codec can't encode" errors
@@ -47,10 +48,10 @@ def main():
     logger.info("Created directory: %s" % output_directory)
 
     # Set up API access
-    if args.tokenfile.endswith('yaml'):
+    if args.token_file.endswith('yaml'):
         #YAML file
         tokens = yaml.safe_load(open(args.token_file))
-    elif args.tokenfile.endswith('py'):
+    elif args.token_file.endswith('py'):
         #.py file -- surely there is a better way to do this
         tokens = {}
         for line in open(args.token_file):
@@ -68,14 +69,14 @@ def main():
     # Gather tweets for each of the unique screen names
     # NB: in production, one should use `id` as an identifier (which does not change)
     # rather than the `screen_name`, which can be changed at the users's whim.
-    for screen_name in unique_screen_names:
+    for screen_name in screen_names:
         tweet_filename = output_directory + screen_name + ".tweets.gz" 
         if os.path.exists(tweet_filename):
             logger.info("File '%s' already exists - will not attempt to download Tweets for '%s'" % (tweet_filename, screen_name))
         else:
             tweets = crawler.get_all_timeline_tweets_for_screen_name( screen_name )
             #Write them out as one-JSON-object-per-line in a gzipped file
-            save_tweets_to_json_file(tweets, tweet_filename, gzip=True)
+            save_tweets_to_json_file(tweets, tweet_filename)
 
 
 if __name__ == "__main__":

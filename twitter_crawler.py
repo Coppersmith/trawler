@@ -43,7 +43,7 @@ def get_screen_names_from_file(filename):
     screen_names = []
     for line in screen_name_file.readlines():
         if line.strip():
-            screen_names.append(line.strip())
+            screen_names.append(line.strip().replace('@',''))
     screen_name_file.close()
     return screen_names
 
@@ -83,7 +83,7 @@ def save_screen_names_to_file(screen_names, filename, logger=None):
     f.close()
 
 
-def save_tweets_to_json_file(tweets, json_filename, gzip_out=False):
+def save_tweets_to_json_file(tweets, json_filename, gzip_out=True):
     """
     Takes a Python dictionary of Tweets from the Twython API, and
     saves the Tweets to a JSON file, storing one JSON object per
