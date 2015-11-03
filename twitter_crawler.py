@@ -152,8 +152,20 @@ class CrawlTwitterTimelines:
         self._logger.info("Retrieving Tweets for user '%s'" % screen_name)
 
         # Retrieve first batch of Tweets
-        tweets = self._twitter_endpoint.get_data(screen_name=screen_name, count=200)
-        self._logger.info("  Retrieved first %d Tweets for user '%s'" % (len(tweets), screen_name))
+        try:
+            tweets = self._twitter_endpoint.get_data(screen_name=screen_name, count=200)
+            self._logger.info("  Retrieved first %d Tweets for user '%s'" % (len(tweets), screen_name))
+        except TwythonError as e:
+            if e.error_code == 404:
+                self._logger.warn("HTTP 404 error - Most likely, Twitter user '%s' no longer exists" % screen_name)
+                return []
+            elif e.error_code == 401:
+                self._logger.warn("HTTP 401 error - Most likely, Twitter user '%s' no longer publicly accessible" % screen_name)
+                return []
+            else:
+                # Unhandled exception
+                raise e
+
 
         if len(tweets) < MINIMUM_TWEETS_REQUIRED_FOR_MORE_API_CALLS:
             return tweets
@@ -244,9 +256,21 @@ class CrawlTwitterTimelines:
 
         self._logger.info("Retrieving Tweets for user_id '%s'" % user_id)
 
-        # Retrieve first batch of Tweets
-        tweets = self._twitter_endpoint.get_data(user_id=user_id, count=200)
-        self._logger.info("  Retrieved first %d Tweets for user_id '%s'" % (len(tweets), user_id))
+        try:
+            # Retrieve first batch of Tweets
+            tweets = self._twitter_endpoint.get_data(user_id=user_id, count=200)
+            self._logger.info("  Retrieved first %d Tweets for user_id '%s'" % (len(tweets), user_id))
+        except TwythonError as e:
+            if e.error_code == 404:
+                self._logger.warn("HTTP 404 error - Most likely, Twitter user '%s' no longer exists" % user_id)
+                return []
+            elif e.error_code == 401:
+                self._logger.warn("HTTP 401 error - Most likely, Twitter user '%s' no longer publicly accessible" % user_id)
+                return []
+            else:
+                # Unhandled exception
+                raise e
+
 
         if len(tweets) < MINIMUM_TWEETS_REQUIRED_FOR_MORE_API_CALLS:
             return tweets
@@ -497,17 +521,33 @@ class FindFollowers:
 ### Access Users by `screen_name`
 ###
 
-    def get_follower_ids_for_screen_name(self, screen_name):
+    def get_follower_ids_for_screen_name(self, screen_name, count=-1):
         """
         Returns Twitter user IDs for users who are Followers of
         the specified screen_name.
 
         The 'followers/ids' endpoint return at most 5000 IDs,
-        so IF a user has more than 5000 followers, this function WILL
-        NOT RETURN THE CORRECT ANSWER
+        so IF a user has more than 5000 followers, this function 
+        will return the first 'page'.
+        To get it to return ALL the followers (or up to a specific number),
+        this call can get quite costly in terms of time -- specifying exactly
+        how many users to return can by done via `count`. If we run out of
+        available followers, we will return with less than `count` ids.
         """
         try:
-            follower_ids = self._follower_endpoint.get_data(screen_name=screen_name)[u'ids']
+            response = self._follower_endpoint.get_data(screen_name=screen_name)
+            follower_ids = response['ids']
+            print "IDs returned:", len(follower_ids)
+            print response.keys()
+            next_cursor = response['next_cursor_str']
+            while len(follower_ids) < count:
+                response = self._follower_endpoint.get_data(screen_name=screen_name, 
+                                                            cursor=next_cursor)
+                follower_ids += response['ids']
+                print len(response['ids'])
+                next_cursor = response['next_cursor_str']
+                if len(response['ids']) == 0:
+                    break #We've reached the end of what is available
         except TwythonError as e:
             if e.error_code == 404:
                 self._logger.warn("HTTP 404 error - Most likely, Twitter user '%s' no longer exists" % screen_name)
@@ -792,6 +832,12 @@ class ListMembership:
         # Retrieve first batch of members
         response = self._lists_members_endpoint.get_data(list_id=list_id, count=5000 )
         members = response['users']
+        
+        if 'cursor' in response and response['cursor']:
+            #TODO -- validate and check
+            members += self._lists_members_endpoint.get_data(list_id=list_id, count=5000, 
+                                                             cursor=response['cursor']['next_id'])
+
         self._logger.info("  Retrieved first %d Members for List '%s'" % (len(members), list_id))
 
         return members
