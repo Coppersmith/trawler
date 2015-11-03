@@ -106,6 +106,7 @@ def tweets_to_kafka_stream(tweets, channel='trawler', kafka_producer=None,
     Sends each tweet in `tweets` as a message on the Kafka channel `channel`.
     Requires either a `kafka_producer`, an instance of `kafka.SimpleProducer` or
     the `host` and `port` upon which to connect.
+    #TODO should probably be removed, to keep this purely about REST API
     """
     if not kafka_producer:
         from kafka import KafkaClient, SimpleProducer
@@ -406,18 +407,27 @@ class FindFriendFollowers:
 ### Accessing data by screen_name
 ###
 
-    def get_ff_ids_for_screen_name(self, screen_name):
+    def get_ff_ids_for_screen_name(self, screen_name, all=False):
         """
         Returns Twitter user IDs for users who are both Friends and Followers
         for the specified screen_name.
 
         The 'friends/ids' and 'followers/ids' endpoints return at most 5000 IDs,
-        so IF a user has more than 5000 friends or followers, this function WILL
-        NOT RETURN THE CORRECT ANSWER
+        so IF a user has more than 5000 followers, this function 
+        will return the first 'page' from each.
+        This tends to be enough for all users except celebrities.
+        For these cases, specify `all=True`. This call will likely get
+        very costly in terms of time, so use sparingly.
         """
         try:
-            friend_ids = self._friend_endpoint.get_data(screen_name=screen_name)[u'ids']
-            follower_ids = self._follower_endpoint.get_data(screen_name=screen_name)[u'ids']
+            response = self._friend_endpoint.get_data(screen_name=screen_name)
+            friend_ids = response['ids']
+            next_cursor = response['next_cursor_str']
+            while all and next_cursor:
+                response = self._friend_endpoint.get_data(screen_name=screen_name, 
+                                                            cursor=next_cursor)
+                friend_ids += response['ids']
+                next_cursor = response['next_cursor_str']
         except TwythonError as e:
             if e.error_code == 404:
                 self._logger.warn("HTTP 404 error - Most likely, Twitter user '%s' no longer exists" % screen_name)
@@ -426,9 +436,19 @@ class FindFriendFollowers:
             else:
                 # Unhandled exception
                 raise e
-            friend_ids = []
-            follower_ids = []
+            return [] #No data will be found
 
+        # We shouldn't get 404s and 401s on this call, so need for the try/except
+        response = self._follower_endpoint.get_data(screen_name=screen_name)
+        follower_ids = response['ids']
+        next_cursor = response['next_cursor_str']
+        while len(follower_ids) < count and next_cursor:
+            response = self._follower_endpoint.get_data(screen_name=screen_name, 
+                                                            cursor=next_cursor)
+            follower_ids += response['ids']
+            next_cursor = response['next_cursor_str']
+
+        # Return those in common
         return list(set(friend_ids).intersection(set(follower_ids)))
 
 
@@ -452,18 +472,27 @@ class FindFriendFollowers:
 ### Accessing data by user_id
 ###
 
-    def get_ff_ids_for_id(self, user_id):
+    def get_ff_ids_for_id(self, user_id, all=False):
         """
         Returns Twitter user IDs for users who are both Friends and Followers
         for the specified `user_id`.
 
         The 'friends/ids' and 'followers/ids' endpoints return at most 5000 IDs,
-        so IF a user has more than 5000 friends or followers, this function WILL
-        NOT RETURN THE CORRECT ANSWER
+        so IF a user has more than 5000 followers, this function 
+        will return the first 'page' from each.
+        This tends to be enough for all users except celebrities.
+        For these cases, specify `all=True`. This call will likely get
+        very costly in terms of time, so use sparingly.
         """
         try:
-            friend_ids = self._friend_endpoint.get_data(user_id=user_id)[u'ids']
-            follower_ids = self._follower_endpoint.get_data(user_id=user_id)[u'ids']
+            response = self._friend_endpoint.get_data(user_id=user_id)
+            friend_ids = response['ids']
+            next_cursor = response['next_cursor_str']
+            while all and next_cursor:
+                response = self._friend_endpoint.get_data(user_id=user_id, 
+                                                          cursor=next_cursor)
+                friend_ids += response['ids']
+                next_cursor = response['next_cursor_str']
         except TwythonError as e:
             if e.error_code == 404:
                 self._logger.warn("HTTP 404 error - Most likely, Twitter user '%s' no longer exists" % user_id)
@@ -472,9 +501,19 @@ class FindFriendFollowers:
             else:
                 # Unhandled exception
                 raise e
-            friend_ids = []
-            follower_ids = []
+            return [] #No data will be found
 
+        # We shouldn't get 404s and 401s on this call, so need for the try/except
+        response = self._follower_endpoint.get_data(user_id=user_id)
+        follower_ids = response['ids']
+        next_cursor = response['next_cursor_str']
+        while len(follower_ids) < count and next_cursor:
+            response = self._follower_endpoint.get_data(user_id=user_id, 
+                                                            cursor=next_cursor)
+            follower_ids += response['ids']
+            next_cursor = response['next_cursor_str']
+
+        # Return those in common
         return list(set(friend_ids).intersection(set(follower_ids)))
 
 
@@ -537,17 +576,12 @@ class FindFollowers:
         try:
             response = self._follower_endpoint.get_data(screen_name=screen_name)
             follower_ids = response['ids']
-            print "IDs returned:", len(follower_ids)
-            print response.keys()
             next_cursor = response['next_cursor_str']
-            while len(follower_ids) < count:
+            while len(follower_ids) < count and next_cursor:
                 response = self._follower_endpoint.get_data(screen_name=screen_name, 
                                                             cursor=next_cursor)
                 follower_ids += response['ids']
-                print len(response['ids'])
                 next_cursor = response['next_cursor_str']
-                if len(response['ids']) == 0:
-                    break #We've reached the end of what is available
         except TwythonError as e:
             if e.error_code == 404:
                 self._logger.warn("HTTP 404 error - Most likely, Twitter user '%s' no longer exists" % screen_name)
@@ -561,12 +595,14 @@ class FindFollowers:
         return follower_ids
 
 
-    def get_follower_screen_names_for_screen_name(self, screen_name):
+    def get_follower_screen_names_for_screen_name(self, screen_name, **kwargs):
         """
         Returns Twitter screen names for users who are Followers
         of the specified screen_name.
+        Any additional keyword arguments are passed on to
+        `get_follower_ids_for_screen_name`
         """
-        follower_ids = self.get_follower_ids_for_screen_name(screen_name)
+        follower_ids = self.get_follower_ids_for_screen_name(screen_name, **kwargs)
 
         follower_screen_names = []
         # The Twitter API allows us to look up info for 100 users at a time
@@ -581,29 +617,40 @@ class FindFollowers:
 ### Access Users by `user_id`
 ###
 
-    def get_follower_ids_for_id(self, user_id):
+
+    def get_follower_ids_for_id(self, user_id, count=-1):
         """
         Returns Twitter user IDs for users who are Followers of
-        the specified user_id.
+        the specified `user_id`.
 
         The 'followers/ids' endpoint return at most 5000 IDs,
-        so IF a user has more than 5000 followers, this function WILL
-        NOT RETURN THE CORRECT ANSWER
+        so IF a user has more than 5000 followers, this function 
+        will return the first 'page'.
+        To get it to return ALL the followers (or up to a specific number),
+        this call can get quite costly in terms of time -- specifying exactly
+        how many users to return can by done via `count`. If we run out of
+        available followers, we will return with less than `count` ids.
         """
         try:
-            follower_ids = self._follower_endpoint.get_data(user_id=user_id)[u'ids']
+            response = self._follower_endpoint.get_data(user_id=user_id)
+            follower_ids = response['ids']
+            next_cursor = response['next_cursor_str']
+            while len(follower_ids) < count and next_cursor:
+                response = self._follower_endpoint.get_data(user_id=user_id, 
+                                                            cursor=next_cursor)
+                follower_ids += response['ids']
+                next_cursor = response['next_cursor_str']
         except TwythonError as e:
             if e.error_code == 404:
-                self._logger.warn("HTTP 404 error - Most likely, Twitter user_id '%s' no longer exists" % user_id)
+                self._logger.warn("HTTP 404 error - Most likely, Twitter user '%s' no longer exists" % user_id)
             elif e.error_code == 401:
-                self._logger.warn("HTTP 401 error - Most likely, Twitter user_id '%s' no longer publicly accessible" % user_id)
+                self._logger.warn("HTTP 401 error - Most likely, Twitter user '%s' no longer publicly accessible" % user_id)
             else:
                 # Unhandled exception
                 raise e
             follower_ids = []
 
         return follower_ids
-
 
     def get_follower_screen_names_for_id(self, user_id):
         """
@@ -648,16 +695,27 @@ class FindFollowees:
 ### Access Users by `screen_name`
 ###
 
-    def get_followee_ids_for_screen_name(self, screen_name):
+    def get_followee_ids_for_screen_name(self, screen_name, count=-1):
         """
         Returns Twitter user IDs for users who `screen_name` follows.
 
         The 'followers/ids' endpoint return at most 5000 IDs,
-        so IF a user has more than 5000 followers, this function WILL
-        NOT RETURN THE CORRECT ANSWER
+        so IF a user follows more than 5000 users, this function 
+        will return the first 'page'.
+        To get it to return ALL the followers (or up to a specific number),
+        this call can get quite costly in terms of time -- specifying exactly
+        how many users to return can by done via `count`. If we run out of
+        available followers, we will return with less than `count` ids.
         """
         try:
-            followee_ids = self._followee_endpoint.get_data(screen_name=screen_name)[u'ids']
+            response = self._followee_endpoint.get_data(screen_name=screen_name)
+            followee_ids = response['ids']
+            next_cursor = response['next_cursor_str']
+            while len(followee_ids) < count and next_cursor:
+                response = self._followee_endpoint.get_data(screen_name=screen_name, 
+                                                            cursor=next_cursor)
+                followee_ids += response['ids']
+                next_cursor = response['next_cursor_str']
         except TwythonError as e:
             if e.error_code == 404:
                 self._logger.warn("HTTP 404 error - Most likely, Twitter user '%s' no longer exists" % screen_name)
@@ -669,6 +727,8 @@ class FindFollowees:
             followee_ids = []
 
         return followee_ids
+
+
 
 
     def get_followee_screen_names_for_screen_name(self, screen_name):
@@ -690,28 +750,38 @@ class FindFollowees:
 ### Access Users by `user_id`
 ###
 
-    def get_followee_ids_for_id(self, user_id):
+    def get_followee_ids_for_id(self, user_id, count=-1):
         """
-        Returns Twitter user IDs for users who `user_id` follows.
+        Returns Twitter user IDs for users who `screen_name` follows.
 
-        The 'followers/ids' endpoint return at most 5000 IDs,
-        so IF a user has more than 5000 followers, this function WILL
-        NOT RETURN THE CORRECT ANSWER
+        The 'followees/ids' endpoint return at most 5000 IDs,
+        so IF a follows more than 5000 users, this function 
+        will return the first 'page'.
+        To get it to return ALL the followees (or up to a specific number),
+        this call can get quite costly in terms of time -- specifying exactly
+        how many users to return can by done via `count`. If we run out of
+        available followees, we will return with less than `count` ids.
         """
         try:
-            followee_ids = self._followee_endpoint.get_data(user_id=user_id)[u'ids']
+            response = self._followee_endpoint.get_data(user_id=user_id)
+            followee_ids = response['ids']
+            next_cursor = response['next_cursor_str']
+            while len(follower_ids) < count and next_cursor:
+                response = self._followee_endpoint.get_data(user_id=user_id, 
+                                                            cursor=next_cursor)
+                followee_ids += response['ids']
+                next_cursor = response['next_cursor_str']
         except TwythonError as e:
             if e.error_code == 404:
-                self._logger.warn("HTTP 404 error - Most likely, Twitter user_id '%s' no longer exists" % user_id)
+                self._logger.warn("HTTP 404 error - Most likely, Twitter user '%s' no longer exists" % user_id)
             elif e.error_code == 401:
-                self._logger.warn("HTTP 401 error - Most likely, Twitter user_id '%s' no longer publicly accessible" % user_id)
+                self._logger.warn("HTTP 401 error - Most likely, Twitter user '%s' no longer publicly accessible" % user_id)
             else:
                 # Unhandled exception
                 raise e
             followee_ids = []
 
         return followee_ids
-
 
     def get_followee_screen_names_for_id(self, user_id):
         """
@@ -791,28 +861,24 @@ class ListMembership:
 ### Accessing data by screen_name
 ###
 
-    def get_list_memberships_for_screen_name(self, screen_name):
+    def get_list_memberships_for_screen_name(self, screen_name, count=1000):
         """
         Returns full listings for any lists this `screen_name` was added to.
 
-        Unclear what will happen if `screen_name` is a member of many many lists.
+        Paging will be applied if user is a member of more than 1000 lists,
+        until we reach `count` lists or we run out of cursors.
         """
         try:
-            list_memberships = self._lists_memberships_endpoint.get_data(screen_name=screen_name)[u'lists']
-            #follower_ids = self._follower_endpoint.get_data(screen_name=screen_name)[u'ids']
+            response = self._lists_memberships_endpoint.get_data(screen_name=screen_name)
+            list_memberships = response[u'lists']
+            next_cursor = response['next_cursor']
+            while next_cursor and len(list_memberships) < count:
+                response = self._lists_memberships_endpoint.get_data(screen_name=screen_name, cursor=next_cursor)
+                list_memberships += response['lists']
         except TwythonError as e:
             print "Error:", e.error_code
             print e
             raise e
-            """
-            if e.error_code == 404:
-                self._logger.warn("HTTP 404 error - Most likely, Twitter user '%s' no longer exists" % screen_name)
-            elif e.error_code == 401:
-                self._logger.warn("HTTP 401 error - Most likely, Twitter user '%s' no longer publicly accessible" % screen_name)
-            else:
-                # Unhandled exception
-                raise e
-            """
             list_memberships = []
         return list_memberships
 
@@ -827,16 +893,16 @@ class ListMembership:
         Returns the users who are members of list `list_id`.
         This output is cursored, which is not currently implemented, so only the
         first 5000 members of each list are returned.
-        TODO: add cursor paging functionality.
         """
         # Retrieve first batch of members
         response = self._lists_members_endpoint.get_data(list_id=list_id, count=5000 )
         members = response['users']
-        
-        if 'cursor' in response and response['cursor']:
-            #TODO -- validate and check
-            members += self._lists_members_endpoint.get_data(list_id=list_id, count=5000, 
-                                                             cursor=response['cursor']['next_id'])
+        next_cursor = response['next_cursor']
+        while next_cursor:
+            response = self._lists_members_endpoint.get_data(list_id=list_id, count=5000, 
+                                                             cursor=next_cursor)
+            members += response['users']
+            next_cursor = response['next_cursor']
 
         self._logger.info("  Retrieved first %d Members for List '%s'" % (len(members), list_id))
 
