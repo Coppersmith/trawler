@@ -24,6 +24,13 @@ class TrawlerKafka:
         self.client = kafka_client
         self.topic = topic
         self.producer = producer
+        """self.consumer = topic.get_simple_consumer(consumer_group='mygroup',
+                                                  #auto_offset_reset=OffsetType.EARLIEST,
+                                                  reset_offset_on_start=False)
+                                                  """
+        #self.consumer.start()
+        #self.consumer.
+        self.consumer = topic.get_simple_consumer()
         
     def send_individual_tweets( self, tweets):
         """
@@ -32,6 +39,12 @@ class TrawlerKafka:
         for tweet in tweets:
             self.producer.produce([json.dumps(tweet)])
 
+    def send_individual_tweet( self, tweet):
+        """
+        Send this tweet as a message.
+        """
+        self.send_individual_tweets([tweet])
+
 
     def send_bulk_tweets( self, tweets):
         """
@@ -39,21 +52,29 @@ class TrawlerKafka:
         """
         self.producer.produce(json.dumps(tweets))
 
-    def get_data(self):
+    def get_tweets(self):
         """
         Get and reconstitute tweets from a kafka queue
         """
-        self.consumer.consume()
-
+        for message in self.consumer:
+            if message is not None:
+                tweet = json.loads(message.value)
+                yield tweet
 
         
 if __name__ == '__main__':
     """
     Run standalone to test
     """
-
+    
     trawler_kafka = TrawlerKafka( 'localhost',9092)
-    tweets = [{'text':'tweet tweet'},{'text':'tweety tweet tweet'},{'text':'tweety tweet tweety tweet'}]
+    import datetime as dt
+    tweets = [{'text':'tweet tweet','timestamp':dt.datetime.now().isoformat()},{'text':'tweety tweet tweet'},{'text':'tweety tweet tweety tweet'}]
     for i in range(10):
         trawler_kafka.send_individual_tweets(tweets)
-    
+
+    print "------------------------"
+
+    trawler_kafka2 = TrawlerKafka('localhost',9092)
+    for m in trawler_kafka2.get_tweets():
+        print m.keys()

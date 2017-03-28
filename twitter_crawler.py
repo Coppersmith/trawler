@@ -560,7 +560,7 @@ class FindFollowers:
 ### Access Users by `screen_name`
 ###
 
-    def get_follower_ids_for_screen_name(self, screen_name, count=-1):
+    def get_follower_ids_for_screen_name(self, screen_name, count=-1, incremental_output=None):
         """
         Returns Twitter user IDs for users who are Followers of
         the specified screen_name.
@@ -572,16 +572,29 @@ class FindFollowers:
         this call can get quite costly in terms of time -- specifying exactly
         how many users to return can by done via `count`. If we run out of
         available followers, we will return with less than `count` ids.
+        `incremental_output` is a function that stores data even if the 
+        crawl isn't finished, this allow follow-on processes to proceed 
+        during long calls. In the simplest case, this just writes to a file or 
+        kafka queue.
         """
         try:
             response = self._follower_endpoint.get_data(screen_name=screen_name)
             follower_ids = response['ids']
             next_cursor = response['next_cursor_str']
-            while len(follower_ids) < count and next_cursor:
+            print "*",next_cursor,"*"
+            keep_going = True
+            while len(follower_ids) < count and next_cursor and keep_going:
                 response = self._follower_endpoint.get_data(screen_name=screen_name, 
                                                             cursor=next_cursor)
-                follower_ids += response['ids']
+                new_ids = response['ids']
+                follower_ids += new_ids
+                print new_ids
+                if len(new_ids)<1:
+                    keep_going = False
+                if incremental_output:
+                    incremental_output( new_ids)
                 next_cursor = response['next_cursor_str']
+                
         except TwythonError as e:
             if e.error_code == 404:
                 self._logger.warn("HTTP 404 error - Most likely, Twitter user '%s' no longer exists" % screen_name)
