@@ -154,7 +154,7 @@ class CrawlTwitterTimelines:
 
         # Retrieve first batch of Tweets
         try:
-            tweets = self._twitter_endpoint.get_data(screen_name=screen_name, count=200)
+            tweets = self._twitter_endpoint.get_data(screen_name=screen_name, count=200, tweet_mode='extended')
             self._logger.info("  Retrieved first %d Tweets for user '%s'" % (len(tweets), screen_name))
         except TwythonError as e:
             if e.error_code == 404:
@@ -174,7 +174,7 @@ class CrawlTwitterTimelines:
         # Retrieve rest of Tweets
         while 1:
             max_id = int(tweets[-1]['id']) - 1
-            more_tweets = self._twitter_endpoint.get_data(screen_name=screen_name, count=200, max_id=max_id)
+            more_tweets = self._twitter_endpoint.get_data(screen_name=screen_name, count=200, max_id=max_id, tweet_mode='extended')
             tweets += more_tweets
             self._logger.info("  Retrieved %d Tweets for user '%s' with max_id='%d'" % (len(more_tweets), screen_name, max_id))
 
@@ -189,7 +189,7 @@ class CrawlTwitterTimelines:
         """
         self._logger.info("Retrieving Tweets for user '%s'" % screen_name)
 
-        tweets = self._twitter_endpoint.get_data(screen_name=screen_name,count=200)
+        tweets = self._twitter_endpoint.get_data(screen_name=screen_name,count=200, tweet_mode='extended')
         self._logger.info("  Retrieved first %d Tweets for user '%s'" % (len(tweets),screen_name))
         return tweets
 
@@ -215,7 +215,7 @@ class CrawlTwitterTimelines:
 
         # Retrieve first batch of Tweets
         if not max_id:
-            tweets = self._twitter_endpoint.get_data(screen_name=screen_name, count=200, since_id=since_id)
+            tweets = self._twitter_endpoint.get_data(screen_name=screen_name, count=200, since_id=since_id, tweet_mode='extended')
             self._logger.info("  Retrieved first %d Tweets for user '%s'" % (len(tweets), screen_name))
 
             if len(tweets) < MINIMUM_TWEETS_REQUIRED_FOR_MORE_API_CALLS:
@@ -227,7 +227,7 @@ class CrawlTwitterTimelines:
         while 1:
             if tweets: #Will only trigger
                 max_id = int(tweets[-1]['id']) - 1
-            more_tweets = self._twitter_endpoint.get_data(screen_name=screen_name, count=200, max_id=max_id, since_id=since_id)
+            more_tweets = self._twitter_endpoint.get_data(screen_name=screen_name, count=200, max_id=max_id, since_id=since_id, tweet_mode='extended')
             tweets += more_tweets
             self._logger.info("  Retrieved %d Tweets for user '%s' with max_id='%d'" % (len(more_tweets), screen_name, since_id))
 
@@ -279,7 +279,7 @@ class CrawlTwitterTimelines:
         # Retrieve rest of Tweets
         while 1:
             max_id = int(tweets[-1]['id']) - 1
-            more_tweets = self._twitter_endpoint.get_data(user_id=user_id, count=200, max_id=max_id)
+            more_tweets = self._twitter_endpoint.get_data(user_id=user_id, count=200, max_id=max_id, tweet_mode='extended')
             tweets += more_tweets
             self._logger.info("  Retrieved %d Tweets for user '%s' with max_id='%d'" % (len(more_tweets), user_id, max_id))
 
@@ -294,7 +294,7 @@ class CrawlTwitterTimelines:
         """
         self._logger.info("Retrieving Tweets for user_id '%s'" % user_id)
 
-        tweets = self._twitter_endpoint.get_data(user_id=user_id,count=200)
+        tweets = self._twitter_endpoint.get_data(user_id=user_id,count=200, tweet_mode='extended')
         self._logger.info("  Retrieved first %d Tweets for user '%s'" % (len(tweets),user_id))
         return tweets
 
@@ -330,7 +330,7 @@ class CrawlTwitterTimelines:
         while 1:
             if tweets: #Will only trigger
                 max_id = int(tweets[-1]['id']) - 1
-            more_tweets = self._twitter_endpoint.get_data(user_id=user_id, count=200, max_id=max_id, since_id=since_id)
+            more_tweets = self._twitter_endpoint.get_data(user_id=user_id, count=200, max_id=max_id, since_id=since_id, tweet_mode='extended')
             tweets += more_tweets
             self._logger.info("  Retrieved %d Tweets for user_id '%s' with max_id='%d'" % (len(more_tweets), user_id, since_id))
 
@@ -358,7 +358,7 @@ class CrawlTwitterTimelines:
         self._logger.info("Retrieving Tweets for user '%s'" % user_id)
 
         # Retrieve first batch of Tweets
-        tweets = self._twitter_endpoint.get_data(user_id=user_id, count=200, since_id=since_id, max_id=max_id)
+        tweets = self._twitter_endpoint.get_data(user_id=user_id, count=200, since_id=since_id, max_id=max_id, tweet_mode='extended')
         self._logger.info("  Retrieved first %d Tweets for user '%s'" % (len(tweets), user_id))
 
         if len(tweets) < MINIMUM_TWEETS_REQUIRED_FOR_MORE_API_CALLS:
@@ -367,7 +367,7 @@ class CrawlTwitterTimelines:
         # Retrieve rest of Tweets
         while 1:
             max_id = int(tweets[-1]['id']) - 1 #It's okay that this adjusts the max_id, since we are going backwards in time
-            more_tweets = self._twitter_endpoint.get_data(user_id=user_id, count=200, max_id=max_id, since_id=since_id)
+            more_tweets = self._twitter_endpoint.get_data(user_id=user_id, count=200, max_id=max_id, since_id=since_id, tweet_mode='extended')
             tweets += more_tweets
             self._logger.info("  Retrieved %d Tweets for user '%s' with max_id='%d'" % (len(more_tweets), user_id, since_id))
 
@@ -689,7 +689,7 @@ class FindFollowees:
         else:
             self._logger = logger
 
-        self._followee_endpoint = RateLimitedTwitterEndpoint(twython, "followers/ids", logger=self._logger)
+        self._followee_endpoint = RateLimitedTwitterEndpoint(twython, "friends/ids", logger=self._logger)
         self._user_lookup_endpoint = RateLimitedTwitterEndpoint(twython, "users/lookup", logger=self._logger)
         self.calls_remaining = 1
         self.last_checked_status = dt.datetime.now()
